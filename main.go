@@ -12,7 +12,19 @@ func main() {
 	//
 	//defer watcher.Close()
 
-	logger, _ := zap.NewProduction()
+	cfg := zap.Config{
+		Level:    zap.NewAtomicLevelAt(zap.InfoLevel),
+		Encoding: "json",
+		OutputPaths: []string{
+			"stdout",
+		},
+		ErrorOutputPaths: []string{
+			"stderr",
+		},
+		EncoderConfig: zap.NewProductionEncoderConfig(),
+	}
+
+	logger, _ := cfg.Build()
 	defer logger.Sync() // flushes buffer, if any
 	sugar := logger.Sugar()
 
@@ -29,16 +41,24 @@ func main() {
 		for {
 			select {
 			case event := <-watcherChan:
-				sugar.Infof("event: %v", event)
+				if event.EventType == longpoll.EventType_CREATE {
+					sugar.Infof("create file: %v", event)
+				}
 
-			case <-time.After(5 * time.Second):
-				sugar.Infof("timeout")
+				if event.EventType == longpoll.EventType_DELETE {
+					sugar.Infof("delete file: %v", event)
+				}
+
+				if event.EventType == longpoll.EventType_MODIFY {
+					sugar.Infof("modify file: %v", event)
+				}
+
 			}
 		}
 
 	}()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	longpollWatcher.Close()
 	time.Sleep(2 * time.Second)
