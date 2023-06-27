@@ -36,25 +36,47 @@ type LongPoll interface {
 }
 
 type Config struct {
-	Timeout  time.Duration // timeout for longpoll
-	Path     string        // path to watch
-	PathType PathType      // path type (file or directory)
-	Logger   Logger        // logger
+	Timeout time.Duration // timeout for longpoll
+	Path    string        // path to watch
+	Logger  Logger        // logger
 }
 
 type LongPollImpl struct {
-	Config Config
-	quit   chan struct{}
-	logger Logger
-	ticker *time.Ticker
-	state  *State
+	Config   Config
+	quit     chan struct{}
+	logger   Logger
+	ticker   *time.Ticker
+	state    *State
+	pathType PathType // path type (file or directory)
 }
 
 func NewLongPoll(config Config) LongPoll {
+	if config.Logger == nil {
+		config.Logger = NewLogger()
+	}
+	var pathType PathType
+	file, err := NewFile(config.Path)
+	if err != nil {
+		panic(err)
+	}
+
+	if file.FileInfo.IsDir() {
+		config.Logger.Debugf("path is directory")
+		pathType = PathType_DIRECTORY
+	} else {
+		config.Logger.Debugf("path is file")
+		pathType = PathType_FILE
+	}
+
+	if config.Timeout == 0 {
+		config.Timeout = 1 * time.Second
+	}
+
 	return &LongPollImpl{
-		Config: config,
-		logger: config.Logger,
-		quit:   make(chan struct{}),
+		Config:   config,
+		logger:   config.Logger,
+		quit:     make(chan struct{}),
+		pathType: pathType,
 	}
 }
 
@@ -133,7 +155,7 @@ func (l *LongPollImpl) eventsFromState(state *State) ([]Event, error) {
 }
 
 func (l *LongPollImpl) getContents() (*State, error) {
-	if l.Config.PathType == PathType_DIRECTORY {
+	if l.pathType == PathType_DIRECTORY {
 		filePaths, err := l.getContentsDirectory()
 		l.logger.Debugf("files %v", filePaths)
 		if err != nil {
@@ -157,8 +179,16 @@ func (l *LongPollImpl) getContents() (*State, error) {
 
 		return state, nil
 
-	} else if l.Config.PathType == PathType_FILE {
-		// do stuff
+	} else if l.pathType == PathType_FILE {
+		file, err := NewFile(l.Config.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		state := NewState()
+		state.AddFile(*file)
+
+		return state, nil
 	} else {
 		// do stuff
 	}

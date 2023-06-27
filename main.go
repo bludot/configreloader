@@ -29,10 +29,9 @@ func main() {
 	sugar := logger.Sugar()
 
 	longpollWatcher := longpoll.NewLongPoll(longpoll.Config{
-		Timeout:  1 * time.Second,
-		Path:     "./tmp",
-		PathType: longpoll.PathType_DIRECTORY,
-		Logger:   sugar,
+		Timeout: 1 * time.Second,
+		Path:    "./tmp",
+		Logger:  sugar,
 	})
 
 	watcherChan, _ := longpollWatcher.Watch()
